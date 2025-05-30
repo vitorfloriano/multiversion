@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2025 The Kubernetes authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	batchv2 "github.com/vitorfloriano/testproject/api/v2"
+	batchv2 "tutorial.kubebuilder.io/project/api/v2"
 	// TODO (user): Add any additional imports if needed
 )
 

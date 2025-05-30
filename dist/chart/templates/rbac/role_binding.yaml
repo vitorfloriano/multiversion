@@ -4,11 +4,11 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     {{- include "chart.labels" . | nindent 4 }}
-  name: testproject-manager-rolebinding
+  name: project-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: testproject-manager-role
+  name: project-manager-role
 subjects:
 - kind: ServiceAccount
   name: {{ .Values.controllerManager.serviceAccountName }}

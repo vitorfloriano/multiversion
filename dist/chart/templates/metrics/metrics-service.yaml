@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: testproject-controller-manager-metrics-service
+  name: project-controller-manager-metrics-service
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}

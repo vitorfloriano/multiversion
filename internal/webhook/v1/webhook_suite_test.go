@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2025 The Kubernetes authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	batchv1 "github.com/vitorfloriano/testproject/api/v1"
+	batchv1 "tutorial.kubebuilder.io/project/api/v1"
 	// +kubebuilder:scaffold:imports
 )
 

@@ -5,10 +5,10 @@
   {{- else if .Values.nameOverride }}
     {{ .Values.nameOverride | trunc 63 | trimSuffix "-" }}
   {{- else }}
-    testproject
+    project
   {{- end }}
 {{- else }}
-  testproject
+  project
 {{- end }}
 {{- end }}
 

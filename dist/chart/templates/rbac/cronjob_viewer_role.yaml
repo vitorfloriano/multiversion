@@ -1,5 +1,5 @@
 {{- if .Values.rbac.enable }}
-# This rule is not used by the project testproject itself.
+# This rule is not used by the project project itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
 # Grants read-only access to batch.tutorial.kubebuilder.io resources.

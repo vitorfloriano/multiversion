@@ -7,8 +7,8 @@ layout:
 - go.kubebuilder.io/v4
 plugins:
   helm.kubebuilder.io/v1-alpha: {}
-projectName: testproject
-repo: github.com/vitorfloriano/testproject
+projectName: project
+repo: tutorial.kubebuilder.io/project
 resources:
 - api:
     crdVersion: v1
@@ -17,7 +17,7 @@ resources:
   domain: tutorial.kubebuilder.io
   group: batch
   kind: CronJob
-  path: github.com/vitorfloriano/testproject/api/v1
+  path: tutorial.kubebuilder.io/project/api/v1
   version: v1
   webhooks:
     conversion: true
@@ -32,7 +32,7 @@ resources:
   domain: tutorial.kubebuilder.io
   group: batch
   kind: CronJob
-  path: github.com/vitorfloriano/testproject/api/v2
+  path: tutorial.kubebuilder.io/project/api/v2
   version: v2
   webhooks:
     defaulting: true

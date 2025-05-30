@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2025 The Kubernetes authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+// +kubebuilder:docs-gen:collapse=Apache License
 
 package main
 
@@ -26,6 +27,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	kbatchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,13 +39,18 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	batchv1 "github.com/vitorfloriano/testproject/api/v1"
-	batchv2 "github.com/vitorfloriano/testproject/api/v2"
-	"github.com/vitorfloriano/testproject/internal/controller"
-	webhookbatchv1 "github.com/vitorfloriano/testproject/internal/webhook/v1"
-	webhookbatchv2 "github.com/vitorfloriano/testproject/internal/webhook/v2"
+	batchv1 "tutorial.kubebuilder.io/project/api/v1"
+	batchv2 "tutorial.kubebuilder.io/project/api/v2"
+	"tutorial.kubebuilder.io/project/internal/controller"
+	webhookbatchv1 "tutorial.kubebuilder.io/project/internal/webhook/v1"
+	webhookbatchv2 "tutorial.kubebuilder.io/project/internal/webhook/v2"
 	// +kubebuilder:scaffold:imports
 )
+
+// +kubebuilder:docs-gen:collapse=Imports
+
+/*
+ */
 
 var (
 	scheme   = runtime.NewScheme()
@@ -53,13 +60,21 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(kbatchv1.AddToScheme(scheme)) // we've added this ourselves
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	utilruntime.Must(batchv2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
+// +kubebuilder:docs-gen:collapse=existing setup
+
+/*
+ */
+
 // nolint:gocyclo
 func main() {
+	/*
+	 */
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
@@ -188,7 +203,7 @@ func main() {
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "0763ee24.tutorial.kubebuilder.io",
+		LeaderElectionID:       "80807133.tutorial.kubebuilder.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -213,6 +228,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "CronJob")
 		os.Exit(1)
 	}
+	// +kubebuilder:docs-gen:collapse=existing setup
+
+	/*
+		Our existing call to SetupWebhookWithManager registers our conversion webhooks with the manager, too.
+	*/
 	// nolint:goconst
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
 		if err = webhookbatchv1.SetupCronJobWebhookWithManager(mgr); err != nil {
@@ -228,6 +248,9 @@ func main() {
 		}
 	}
 	// +kubebuilder:scaffold:builder
+
+	/*
+	 */
 
 	if metricsCertWatcher != nil {
 		setupLog.Info("Adding metrics certificate watcher to manager")
@@ -259,4 +282,5 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+	// +kubebuilder:docs-gen:collapse=existing setup
 }

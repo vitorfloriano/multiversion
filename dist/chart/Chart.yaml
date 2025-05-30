@@ -1,6 +1,6 @@
 apiVersion: v2
-name: testproject
-description: A Helm chart to distribute the project testproject
+name: project
+description: A Helm chart to distribute the project project
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

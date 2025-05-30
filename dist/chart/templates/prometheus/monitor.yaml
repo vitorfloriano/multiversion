@@ -5,7 +5,14 @@ kind: ServiceMonitor
 metadata:
   labels:
     {{- include "chart.labels" . | nindent 4 }}
+<<<<<<< HEAD
   name: project-controller-manager-metrics-monitor
+||||||| a3313ae
+  name: testproject-controller-manager-metrics-monitor
+=======
+    control-plane: controller-manager
+  name: testproject-controller-manager-metrics-monitor
+>>>>>>> upgrade
   namespace: {{ .Release.Namespace }}
 spec:
   endpoints:
@@ -15,6 +22,7 @@ spec:
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:
         {{- if .Values.certmanager.enable }}
+        serverName: testproject-controller-manager-metrics-service.{{ .Release.Namespace }}.svc
         # Apply secure TLS configuration with cert-manager
         insecureSkipVerify: false
         ca:

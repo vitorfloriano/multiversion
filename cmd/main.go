@@ -39,11 +39,25 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+<<<<<<< HEAD
 	batchv1 "tutorial.kubebuilder.io/project/api/v1"
 	batchv2 "tutorial.kubebuilder.io/project/api/v2"
 	"tutorial.kubebuilder.io/project/internal/controller"
 	webhookbatchv1 "tutorial.kubebuilder.io/project/internal/webhook/v1"
 	webhookbatchv2 "tutorial.kubebuilder.io/project/internal/webhook/v2"
+||||||| a3313ae
+	batchv1 "github.com/vitorfloriano/testproject/api/v1"
+	batchv2 "github.com/vitorfloriano/testproject/api/v2"
+	"github.com/vitorfloriano/testproject/internal/controller"
+	webhookbatchv1 "github.com/vitorfloriano/testproject/internal/webhook/v1"
+	webhookbatchv2 "github.com/vitorfloriano/testproject/internal/webhook/v2"
+=======
+	batchv1 "github.com/vitorfloriano/testproject/api/v1"
+	batchv2 "github.com/vitorfloriano/testproject/api/v2"
+	"github.com/vitorfloriano/testproject/internal/controller"
+	webhookv1 "github.com/vitorfloriano/testproject/internal/webhook/v1"
+	webhookv2 "github.com/vitorfloriano/testproject/internal/webhook/v2"
+>>>>>>> upgrade
 	// +kubebuilder:scaffold:imports
 )
 
@@ -154,7 +168,7 @@ func main() {
 
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
-	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.0/pkg/metrics/server
+	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/metrics/server
 	// - https://book.kubebuilder.io/reference/metrics.html
 	metricsServerOptions := metricsserver.Options{
 		BindAddress:   metricsAddr,
@@ -166,7 +180,7 @@ func main() {
 		// FilterProvider is used to protect the metrics endpoint with authn/authz.
 		// These configurations ensure that only authorized users and service accounts
 		// can access the metrics endpoint. The RBAC are configured in 'config/rbac/kustomization.yaml'. More info:
-		// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.0/pkg/metrics/filters#WithAuthenticationAndAuthorization
+		// https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/metrics/filters#WithAuthenticationAndAuthorization
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
 
@@ -221,7 +235,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.CronJobReconciler{
+	if err := (&controller.CronJobReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -235,14 +249,14 @@ func main() {
 	*/
 	// nolint:goconst
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = webhookbatchv1.SetupCronJobWebhookWithManager(mgr); err != nil {
+		if err := webhookv1.SetupCronJobWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "CronJob")
 			os.Exit(1)
 		}
 	}
 	// nolint:goconst
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = webhookbatchv2.SetupCronJobWebhookWithManager(mgr); err != nil {
+		if err := webhookv2.SetupCronJobWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "CronJob")
 			os.Exit(1)
 		}

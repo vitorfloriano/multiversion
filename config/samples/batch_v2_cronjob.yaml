@@ -1,0 +1,9 @@
+apiVersion: batch.tutorial.kubebuilder.io/v2
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/name: testproject
+    app.kubernetes.io/managed-by: kustomize
+  name: cronjob-sample
+spec:
+  # TODO(user): Add fields here

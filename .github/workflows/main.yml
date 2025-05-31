@@ -36,12 +36,23 @@ jobs:
           git checkout main -- PROJECT
           git commit -am "chore: restore PROJECT file"
 
+      - name: Prepare GOPATH for Kubebuilder
+        run: |
+          export GOPATH=$HOME/go
+          mkdir -p $GOPATH/src/github.com/your/module
+          rsync -a ./ $GOPATH/src/github.com/your/module/
+          cd $GOPATH/src/github.com/your/module
+          echo "module github.com/your/module" > go.mod
+
       - name: Run Kubebuilder v4.5.0
         run: |
+          export GOPATH=$HOME/go
+          cd $GOPATH/src/github.com/your/module
           curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v4.5.0/kubebuilder_linux_amd64 -o kubebuilder
           chmod +x kubebuilder
           sudo mv kubebuilder /usr/local/bin/kubebuilder
           kubebuilder alpha generate
+          git add .
           git commit -am "chore: generate code with v4.5.0"
 
       - name: Create original branch from base
@@ -54,10 +65,13 @@ jobs:
         run: |
           git checkout base
           git checkout -b upgrade
+          export GOPATH=$HOME/go
+          cd $GOPATH/src/github.com/your/module
           curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v4.6.0/kubebuilder_linux_amd64 -o kubebuilder
           chmod +x kubebuilder
           sudo mv kubebuilder /usr/local/bin/kubebuilder
           kubebuilder alpha generate
+          git add .
           git commit -am "chore: generate code with v4.6.0"
 
       - name: Merge upgrade into original (expect conflicts)

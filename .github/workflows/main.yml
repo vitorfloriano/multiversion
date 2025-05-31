@@ -1,0 +1,95 @@
+name: AI Merge Conflict Resolver
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  models: read
+
+jobs:
+  resolve-conflicts:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git config --global merge.conflictstyle diff3
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Create base branch with clean slate
+        run: |
+          git checkout -b base
+          git rm -rf .
+          git commit -am "chore: clean slate"
+
+      - name: Restore PROJECT file from main
+        run: |
+          git checkout main -- PROJECT
+          git commit -am "chore: restore PROJECT file"
+
+      - name: Run Kubebuilder v4.5.0
+        run: |
+          curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v4.5.0/kubebuilder_linux_amd64 -o kubebuilder
+          chmod +x kubebuilder
+          sudo mv kubebuilder /usr/local/bin/kubebuilder
+          kubebuilder alpha generate
+          git commit -am "chore: generate code with v4.5.0"
+
+      - name: Create original branch from base
+        run: |
+          git checkout -b original base
+          git checkout main -- .
+          git commit -am "chore: recreate main state"
+
+      - name: Create upgrade branch from base
+        run: |
+          git checkout base
+          git checkout -b upgrade
+          curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v4.6.0/kubebuilder_linux_amd64 -o kubebuilder
+          chmod +x kubebuilder
+          sudo mv kubebuilder /usr/local/bin/kubebuilder
+          kubebuilder alpha generate
+          git commit -am "chore: generate code with v4.6.0"
+
+      - name: Merge upgrade into original (expect conflicts)
+        run: |
+          git checkout original
+          git merge upgrade || true
+          git status
+          git add -u
+          git commit -am "chore: merge with conflicts (unresolved)" || true
+
+      - name: Resolve conflicts using GitHub Models
+        run: |
+          FILES=$(grep -rl '<<<<<<<' .)
+          for file in $FILES; do
+            CONTENT=$(cat "$file")
+            PROMPT="Resolve this merge conflict and return the clean final version:\n\n$CONTENT"
+            JSON=$(jq -n --arg msg "$PROMPT" '{model:"openai/gpt-4o", messages:[{role:"user", content:$msg}]}')
+            curl https://models.github.ai/inference/chat/completions \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -d "$JSON" \
+              -o response.json
+            jq -r '.choices[0].message.content' response.json > "$file"
+          done
+          git add .
+          git commit -m "chore: auto-resolve conflicts using AI"
+
+      - name: Push and create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: original
+          base: main
+          title: "Auto-upgrade scaffold with AI-resolved conflicts"
+          body: "This PR includes an upgrade from v4.5.0 to v4.6.0 with merge conflicts resolved via GitHub Models."

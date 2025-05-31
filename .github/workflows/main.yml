@@ -1,420 +1,127 @@
-name: AI-Assisted Kubebuilder Upgrade
+name: Kubebuilder Upgrade
 on:
   workflow_dispatch:
     inputs:
       from_version:
-        description: 'Current Kubebuilder version'
-        required: true
+        description: 'Current version (e.g., v4.5.0)'
         default: 'v4.5.0'
       to_version:
-        description: 'Target Kubebuilder version'
-        required: true
+        description: 'Target version (e.g., v4.6.0)'
         default: 'v4.6.0'
-      dry_run:
-        description: 'Dry run mode (create PR for review)'
-        type: boolean
-        default: true
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  validate-inputs:
-    runs-on: ubuntu-latest
-    outputs:
-      from_version: ${{ steps.validate.outputs.from_version }}
-      to_version: ${{ steps.validate.outputs.to_version }}
-      checksums: ${{ steps.validate.outputs.checksums }}
-    steps:
-      - name: Validate version inputs
-        id: validate
-        run: |
-          FROM_VERSION="${{ github.event.inputs.from_version }}"
-          TO_VERSION="${{ github.event.inputs.to_version }}"
-          
-          # Remove 'v' prefix if present for consistency
-          FROM_VERSION=${FROM_VERSION#v}
-          TO_VERSION=${TO_VERSION#v}
-          
-          echo "from_version=${FROM_VERSION}" >> $GITHUB_OUTPUT
-          echo "to_version=${TO_VERSION}" >> $GITHUB_OUTPUT
-          
-          # Define known checksums for security
-          case "$TO_VERSION" in
-            "4.6.0")
-              echo "checksums=sha256:example_checksum_here" >> $GITHUB_OUTPUT
-              ;;
-            *)
-              echo "Warning: No checksum validation for version $TO_VERSION"
-              echo "checksums=" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
-  upgrade-kubebuilder:
-    needs: validate-inputs
+  upgrade:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GOPATH: /home/runner/go
+      PROJECT_PATH: /home/runner/go/src/github.com/kubebuilder/project
+    
     steps:
-      - name: Set up Git
+      - name: Setup
         run: |
+          # Setup Go environment
+          mkdir -p $GOPATH/{bin,pkg,src/github.com/kubebuilder}
+          echo "$GOPATH/bin:/usr/local/bin" >> $GITHUB_PATH
+          
+          # Git config
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global merge.conflictstyle diff3
 
-      - name: Checkout repository
+      - name: Checkout to GOPATH
         uses: actions/checkout@v4
         with:
+          path: ${{ env.PROJECT_PATH }}
           fetch-depth: 0
-          path: temp-checkout
 
-      - name: Set up project in GOPATH
+      - name: Install Kubebuilder
         run: |
-          # Copy project to GOPATH structure
-          cp -r temp-checkout/* "$PROJECT_PATH/"
-          cp -r temp-checkout/.git "$PROJECT_PATH/"
-          cp temp-checkout/.gitignore "$PROJECT_PATH/" 2>/dev/null || true
-          
-          # Change to project directory
-          cd "$PROJECT_PATH"
-          
-          # Set git remote to work with the original repository
-          git remote set-url origin ${{ github.repositoryUrl }}
-          
-          # Verify we're in the right place
-          pwd
-          ls -la
-          echo "Working directory: $(pwd)"
-          echo "GOPATH: $GOPATH"
-          echo "Project path: $PROJECT_PATH"
-
-      - name: Validate PROJECT file
-        run: |
-          cd "$PROJECT_PATH"
-          
-          if [ ! -f "PROJECT" ]; then
-            echo "Error: PROJECT file not found. This doesn't appear to be a Kubebuilder project."
-            exit 1
-          fi
-          
-          # Create backup branch
-          git checkout -b backup-$(date +%Y%m%d-%H%M%S)
-          git checkout main
-          
-          # Backup important project files
-          mkdir -p .upgrade-backup
-          cp PROJECT .upgrade-backup/
-          [ -f "go.mod" ] && cp go.mod .upgrade-backup/
-          [ -f "Makefile" ] && cp Makefile .upgrade-backup/
-
-      - name: Set up Go environment and GOPATH
-        run: |
-          # Set up Go environment variables
-          echo "GOPATH=$HOME/go" >> $GITHUB_ENV
-          echo "GO111MODULE=on" >> $GITHUB_ENV
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-          echo "/usr/local/bin" >> $GITHUB_PATH
-          
-          # Create GOPATH structure
-          mkdir -p $HOME/go/{bin,pkg,src}
-          
-          # Create project structure in GOPATH
-          PROJECT_PATH="$HOME/go/src/github.com/kubebuilder/project"
-          mkdir -p "$PROJECT_PATH"
-          echo "PROJECT_PATH=$PROJECT_PATH" >> $GITHUB_ENV
-
-      - name: Download and verify Kubebuilder
-        run: |
-          TO_VERSION="${{ needs.validate-inputs.outputs.to_version }}"
-          
-          # Ensure /usr/local/bin exists and is writable
-          sudo mkdir -p /usr/local/bin
-          
-          # Download kubebuilder
-          curl -fsSL "https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${TO_VERSION}/kubebuilder_linux_amd64" \
+          curl -fsSL "https://github.com/kubernetes-sigs/kubebuilder/releases/download/${{ github.event.inputs.to_version }}/kubebuilder_linux_amd64" \
             -o /tmp/kubebuilder
-          
-          # Verify checksum if available
-          CHECKSUMS="${{ needs.validate-inputs.outputs.checksums }}"
-          if [ -n "$CHECKSUMS" ]; then
-            echo "$CHECKSUMS /tmp/kubebuilder" | sha256sum -c
-          fi
-          
-          # Install to /usr/local/bin
           chmod +x /tmp/kubebuilder
           sudo cp /tmp/kubebuilder /usr/local/bin/kubebuilder
-          
-          # Verify installation and location
-          which kubebuilder
-          ls -la /usr/local/bin/kubebuilder
           kubebuilder version
 
-      - name: Create upgrade branch
+      - name: Upgrade Scaffold
         run: |
-          cd "$PROJECT_PATH"
-          BRANCH_NAME="upgrade/kubebuilder-v${{ needs.validate-inputs.outputs.to_version }}"
-          git checkout -b "$BRANCH_NAME"
-          echo "UPGRADE_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
-
-      - name: Generate new scaffold
-        run: |
-          cd "$PROJECT_PATH"
+          cd $PROJECT_PATH
           
-          # Verify kubebuilder is accessible
-          which kubebuilder
-          kubebuilder version
+          # Create upgrade branch
+          git checkout -b upgrade-${{ github.event.inputs.to_version }}
           
-          # Create temporary directory for clean generation
-          TEMP_DIR="/tmp/kubebuilder-upgrade"
-          mkdir -p "$TEMP_DIR"
-          cp PROJECT "$TEMP_DIR/"
-          cd "$TEMP_DIR"
+          # Generate new scaffold
+          kubebuilder alpha generate
           
-          # Set GOPATH for kubebuilder
-          export GOPATH=$HOME/go
-          export GO111MODULE=on
-          
-          # Generate clean scaffold
-          if ! kubebuilder alpha generate; then
-            echo "Error: Failed to generate scaffold with new version"
-            ls -la
-            cat PROJECT
-            exit 1
-          fi
-          
-          # Copy generated files back, preserving custom code
-          cd "$PROJECT_PATH"
-          cp -r "$TEMP_DIR"/* .
-          
-          # Stage all changes
+          # Commit changes
           git add .
-          git commit -m "feat: upgrade scaffold to kubebuilder v${{ needs.validate-inputs.outputs.to_version }}" || {
-            echo "No changes detected after scaffold generation"
-            exit 0
-          }
+          git commit -m "upgrade: kubebuilder ${{ github.event.inputs.from_version }} → ${{ github.event.inputs.to_version }}" || echo "No changes"
 
-      - name: Detect and prepare conflicts
-        id: conflicts
+      - name: Resolve Conflicts with AI
         run: |
-          cd "$PROJECT_PATH"
+          cd $PROJECT_PATH
           
-          # Try to merge with main to detect conflicts
+          # Try merge to detect conflicts
           git checkout main
-          if git merge "$UPGRADE_BRANCH" --no-commit --no-ff; then
-            echo "No conflicts detected, merge successful"
-            echo "has_conflicts=false" >> $GITHUB_OUTPUT
+          if ! git merge upgrade-${{ github.event.inputs.to_version }} --no-commit; then
+            echo "Conflicts detected, resolving with AI..."
             git reset --hard HEAD
-          else
-            echo "Conflicts detected, preparing for AI resolution"
-            echo "has_conflicts=true" >> $GITHUB_OUTPUT
-            git reset --hard HEAD
-          fi
+            git checkout upgrade-${{ github.event.inputs.to_version }}
+            git merge main --no-commit || true
+            
+            # Find conflict files
+            CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
+            
+            for file in $CONFLICTS; do
+              # Skip large/binary files
+              [ $(wc -c < "$file") -gt 50000 ] && continue
+              file "$file" | grep -q "text" || continue
+              
+              # Resolve with AI
+              cat > /tmp/prompt.txt << 'EOF'
+Resolve this Kubebuilder upgrade merge conflict. Return only the clean file content with no conflict markers:
 
-      - name: Resolve conflicts with AI
-        if: steps.conflicts.outputs.has_conflicts == 'true'
-        run: |
-          cd "$PROJECT_PATH"
-          
-          # Switch back to upgrade branch
-          git checkout "$UPGRADE_BRANCH"
-          
-          # Attempt merge to create conflict state
-          git merge main --no-commit || true
-          
-          # Find conflicted files
-          CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
-          
-          if [ -z "$CONFLICT_FILES" ]; then
-            echo "No conflicted files found"
-            exit 0
-          fi
-          
-          echo "Resolving conflicts in: $CONFLICT_FILES"
-          
-          # Create temporary directory for processing
-          mkdir -p /tmp/ai-resolution
-          
-          for file in $CONFLICT_FILES; do
-            echo "Processing conflict in: $file"
-            
-            # Skip binary files
-            if file "$file" | grep -q "binary"; then
-              echo "Skipping binary file: $file"
-              continue
-            fi
-            
-            # Check file size (limit to 100KB)
-            if [ $(wc -c < "$file") -gt 102400 ]; then
-              echo "File too large, skipping AI resolution: $file"
-              continue
-            fi
-            
-            # Check for null bytes
-            if grep -q $'\0' "$file" 2>/dev/null; then
-              echo "Binary content detected, skipping: $file"
-              continue
-            fi
-            
-            # Save original content to temp file
-            cp "$file" "/tmp/ai-resolution/original_$$.txt"
-            
-            # Create structured prompt
-            cat > "/tmp/ai-resolution/prompt_$$.txt" << 'EOF'
-You are helping resolve a Kubebuilder upgrade merge conflict. Please analyze the conflict and provide ONLY the final resolved file content.
-
-Rules:
-1. Preserve all custom business logic and user modifications
-2. Use the newer Kubebuilder patterns where they don't conflict with custom code
-3. Maintain proper Go syntax and imports
-4. Remove ALL conflict markers (<<<<<<< ======= >>>>>>>)
-5. Respond with ONLY the clean file content, no explanations
-
-Conflicted file content:
 EOF
-            
-            cat "$file" >> "/tmp/ai-resolution/prompt_$$.txt"
-            
-            # Create JSON request
-            jq -n \
-              --rawfile prompt "/tmp/ai-resolution/prompt_$$.txt" \
-              '{
-                model: "gpt-4o",
-                messages: [
-                  {
-                    role: "system",
-                    content: "You are an expert Go developer helping resolve Kubebuilder upgrade conflicts. Respond only with the resolved file content."
-                  },
-                  {
-                    role: "user", 
-                    content: $prompt
-                  }
-                ],
-                temperature: 0.1,
-                max_tokens: 4000
-              }' > "/tmp/ai-resolution/request_$$.json"
-            
-            # Make API request with retry logic
-            RETRIES=3
-            SUCCESS=false
-            
-            for i in $(seq 1 $RETRIES); do
-              if curl -s --fail \
+              cat "$file" >> /tmp/prompt.txt
+              
+              # Call GitHub Models API
+              jq -n \
+                --rawfile prompt /tmp/prompt.txt \
+                '{model:"gpt-4o", messages:[{role:"user", content:$prompt}], temperature:0.1}' | \
+              curl -s --fail \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
-                -d @"/tmp/ai-resolution/request_$$.json" \
-                "https://models.inference.ai.azure.com/chat/completions" \
-                -o "/tmp/ai-resolution/response_$$.json"; then
-                
-                # Validate response and extract content
-                if jq -e '.choices[0].message.content' "/tmp/ai-resolution/response_$$.json" > /dev/null; then
-                  jq -r '.choices[0].message.content' "/tmp/ai-resolution/response_$$.json" > "$file"
-                  SUCCESS=true
-                  break
-                fi
-              fi
+                -d @- \
+                "https://models.inference.ai.azure.com/chat/completions" | \
+              jq -r '.choices[0].message.content' > "$file"
               
-              echo "Attempt $i failed, retrying..."
-              sleep 2
+              echo "Resolved: $file"
             done
             
-            if [ "$SUCCESS" = "false" ]; then
-              echo "Failed to resolve $file with AI, keeping original conflict markers"
-              continue
-            fi
-            
-            # Validate resolution
-            if grep -q '<<<<<<<\|>>>>>>>\|=======' "$file"; then
-              echo "AI failed to remove conflict markers in $file, reverting"
-              cp "/tmp/ai-resolution/original_$$.txt" "$file"
-            else
-              echo "Successfully resolved conflicts in $file"
-            fi
-            
-            # Cleanup temp files
-            rm -f "/tmp/ai-resolution/"*"$$"*
-          done
-          
-          # Stage resolved files
-          git add .
-          git commit -m "fix: resolve merge conflicts with AI assistance" || true
-
-      - name: Run basic validation
-        run: |
-          cd "$PROJECT_PATH"
-          git checkout "$UPGRADE_BRANCH"
-          
-          # Set Go environment
-          export GOPATH=$HOME/go
-          export GO111MODULE=on
-          
-          # Check if Go files compile
-          if command -v go >/dev/null 2>&1; then
-            echo "Running Go validation..."
-            if ! go mod tidy; then
-              echo "Warning: go mod tidy failed"
-            fi
-            
-            if ! go build ./...; then
-              echo "Warning: Go build failed - manual review required"
-            fi
-          fi
-          
-          # Check for remaining conflict markers
-          if grep -r '<<<<<<<\|>>>>>>>\|=======' . --exclude-dir=.git; then
-            echo "Warning: Conflict markers still present - manual review required"
+            git add .
+            git commit -m "fix: resolve conflicts with AI"
           fi
 
-      - name: Create Pull Request
+      - name: Create PR
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: ${{ env.PROJECT_PATH }}
-          branch: ${{ env.UPGRADE_BRANCH }}
-          base: main
-          title: "🤖 Auto-upgrade: Kubebuilder v${{ needs.validate-inputs.outputs.from_version }} → v${{ needs.validate-inputs.outputs.to_version }}"
+          branch: upgrade-${{ github.event.inputs.to_version }}
+          title: "⬆️ Upgrade Kubebuilder ${{ github.event.inputs.from_version }} → ${{ github.event.inputs.to_version }}"
           body: |
-            ## 🚀 Kubebuilder Upgrade
+            ## Kubebuilder Upgrade
             
-            This PR upgrades the project scaffold from Kubebuilder **v${{ needs.validate-inputs.outputs.from_version }}** to **v${{ needs.validate-inputs.outputs.to_version }}**.
+            Automated upgrade from **${{ github.event.inputs.from_version }}** to **${{ github.event.inputs.to_version }}**
             
-            ### 🏗️ Build Environment
-            - ✅ Kubebuilder installed at `/usr/local/bin/kubebuilder`
-            - ✅ Project built in GOPATH structure: `$GOPATH/src/github.com/kubebuilder/project`
+            - ✅ Scaffold updated with new version
+            - 🤖 Conflicts resolved with AI assistance
             
-            ### 🤖 AI-Assisted Resolution
-            ${{ steps.conflicts.outputs.has_conflicts == 'true' && '✅ Merge conflicts were detected and resolved using AI assistance.' || '✅ No merge conflicts detected.' }}
-            
-            ### 📋 What was changed:
-            - Updated scaffold files to match Kubebuilder v${{ needs.validate-inputs.outputs.to_version }}
-            - Preserved all custom business logic and modifications
-            - ${{ steps.conflicts.outputs.has_conflicts == 'true' && 'Resolved merge conflicts automatically' || 'Clean upgrade with no conflicts' }}
-            
-            ### ⚠️ Review Required
-            - [ ] Verify all custom code is preserved
-            - [ ] Check that new scaffold patterns are correctly applied
-            - [ ] Run tests to ensure functionality
-            - [ ] Review any remaining TODO comments
-            
-            ### 🔧 Manual Steps (if needed)
-            ```bash
-            git checkout ${{ env.UPGRADE_BRANCH }}
-            export GOPATH=$HOME/go
-            make test  # Run your test suite
-            make build # Verify build succeeds
-            ```
-            
-            ---
-            🤖 This PR was created automatically using proper GOPATH structure. Please review carefully before merging.
-          draft: ${{ github.event.inputs.dry_run == 'true' }}
-          delete-branch: false
-
-      - name: Summary
-        run: |
-          echo "## 📊 Upgrade Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **From:** Kubebuilder v${{ needs.validate-inputs.outputs.from_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **To:** Kubebuilder v${{ needs.validate-inputs.outputs.to_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Conflicts:** ${{ steps.conflicts.outputs.has_conflicts == 'true' && 'Resolved with AI' || 'None detected' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Mode:** ${{ github.event.inputs.dry_run == 'true' && 'Draft PR (Review Mode)' || 'Ready for Review' }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Upgrade completed successfully!" >> $GITHUB_STEP_SUMMARY
+            **Review checklist:**
+            - [ ] Custom code preserved
+            - [ ] Build passes: `make build`
+            - [ ] Tests pass: `make test`
+          draft: true

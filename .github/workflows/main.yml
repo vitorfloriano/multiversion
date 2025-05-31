@@ -1,14 +1,6 @@
 name: Kubebuilder Upgrade
 on:
   workflow_dispatch:
-    inputs:
-      from_version:
-        description: 'Current version (e.g., v4.5.0)'
-        default: 'v4.5.0'
-      to_version:
-        description: 'Target version (e.g., v4.6.0)'
-        default: 'v4.6.0'
-
 permissions:
   contents: write
   pull-requests: write

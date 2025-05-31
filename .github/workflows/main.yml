@@ -84,15 +84,23 @@ jobs:
 
       - name: Resolve conflicts using GitHub Models
         run: |
-          FILES=$(grep -rl '<<<<<<<' .)
+          FILES=$(grep -rl '<<<<<<<' . || true)
           for file in $FILES; do
-            CONTENT=$(cat "$file")
-            PROMPT="Resolve this merge conflict and return the clean final version:\n\n$CONTENT"
-            JSON=$(jq -n --arg msg "$PROMPT" '{model:"openai/gpt-4o", messages:[{role:"user", content:$msg}]}')
+            CONTENT=$(<"$file")
+            ENCODED=$(printf "%s" "$CONTENT" | base64)
+            PROMPT=$(jq -Rs --arg encoded "$ENCODED" '{
+              model: "openai/gpt-4o",
+              messages: [
+                {
+                  role: "user",
+                  content: "Resolve this merge conflict and return the clean final version:\n\n" + ($encoded | @base64d)
+                }
+              ]
+            }')
             curl https://models.github.ai/inference/chat/completions \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -d "$JSON" \
+              -d "$PROMPT" \
               -o response.json
             jq -r '.choices[0].message.content' response.json > "$file"
           done
